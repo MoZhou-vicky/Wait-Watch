@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patient journey — ED waiting room monitoring</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#F4F5F7;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#101828;overflow:hidden}
+#stage{position:relative;height:100%;display:flex;flex-direction:column}
+#map{flex:1;min-height:0;width:100%;display:block;cursor:pointer}
+.tile{opacity:0;transform-box:fill-box;transform-origin:center;transform:scale(.8);transition:opacity .45s ease,transform .45s cubic-bezier(.2,1.4,.4,1)}
+.tile.on{opacity:1;transform:scale(1)}
+.tile.dim{opacity:.38}
+.seg{stroke-dasharray:10 10;opacity:0;transition:opacity .5s ease}
+.seg.on{opacity:1}
+#avatar{transition:transform .9s cubic-bezier(.45,.05,.4,1)}
+#avatar.walking .body{animation:bob .32s ease-in-out infinite alternate}
+#avatar.walking .legL{animation:legs .32s ease-in-out infinite alternate}
+#avatar.walking .legR{animation:legs .32s ease-in-out infinite alternate-reverse}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+@keyframes legs{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+.legL,.legR{transform-box:fill-box;transform-origin:top center}
+@media (prefers-reduced-motion: reduce){#avatar{transition:none}#avatar.walking .body,#avatar.walking .legL,#avatar.walking .legR{animation:none}.tile{transition:none}}
+#dialog{flex:0 0 auto;margin:0 24px 18px;background:#FFFFFF;border:3px solid #101828;border-radius:14px;box-shadow:0 6px 0 #101828;padding:14px 18px 12px;min-height:150px;display:flex;flex-direction:column;gap:6px;cursor:pointer}
+.line{display:flex;gap:12px;align-items:baseline;font-size:20px;line-height:1.45}
+.who{flex:0 0 auto;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:6px;padding:3px 8px}
+#bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:6px}
+#dots{display:flex;gap:6px}
+#dots span{width:10px;height:10px;border-radius:50%;background:#D0D5DD}
+#dots span.on{background:#101828}
+.ctl{display:flex;gap:8px;align-items:center}
+.ctl button{min-height:40px;min-width:44px;padding:0 14px;border-radius:8px;border:2px solid #101828;background:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.ctl button.primary{background:#101828;color:#fff}
+.hint{font-size:12px;color:#475467}
+#summary{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(16,24,40,.55);padding:24px}
+#summary.on{display:flex}
+#summary .card{background:#fff;border:3px solid #101828;border-radius:16px;box-shadow:0 8px 0 #101828;max-width:980px;width:100%;padding:26px 30px;display:flex;flex-direction:column;gap:16px}
+.cmp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.cmp > div{border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;font-size:16px;line-height:1.45}
+.tl{display:flex;gap:10px}.tl b{min-width:52px;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="map" viewBox="0 0 1600 940" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Patient journey map through the emergency department">
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#E4E7EC" stroke-width="1"/></pattern>
+  </defs>
+  <rect width="1600" height="940" fill="url(#grid)"/>
+  <text x="40" y="52" font-size="30" font-weight="800" fill="#101828">One patient's journey through the ED</text>
+  <text x="40" y="82" font-size="16" fill="#475467">Illustrative scenario · click, Space or → to advance · ← to go back</text>
+  <g id="segs"></g>
+  <g id="tiles"></g>
+  <g id="avatar" style="transform:translate(-80px,350px)"><g transform="scale(0.8)">
+    <ellipse cx="0" cy="2" rx="22" ry="6" fill="#101828" opacity=".18"/>
+    <g class="body">
+      <rect class="legL" x="-11" y="-26" width="9" height="24" rx="3" fill="#344054"/>
+      <rect class="legR" x="2" y="-26" width="9" height="24" rx="3" fill="#344054"/>
+      <rect x="-16" y="-62" width="32" height="40" rx="9" fill="#2E90FA" stroke="#101828" stroke-width="3"/>
+      <rect id="band" opacity="0" x="9" y="-50" width="10" height="7" rx="2" fill="#12B76A" stroke="#101828" stroke-width="2"/>
+      <circle cx="0" cy="-78" r="16" fill="#FDDCAB" stroke="#101828" stroke-width="3"/>
+      <circle cx="-5" cy="-80" r="2.4" fill="#101828"/><circle cx="6" cy="-80" r="2.4" fill="#101828"/>
+      <path d="M-5 -71 q5 4 10 0" fill="none" stroke="#101828" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <g id="patch" opacity="0"><rect x="-8" y="-58" width="16" height="10" rx="3" fill="#F79009" stroke="#101828" stroke-width="2"/></g>
+    <g id="bang" opacity="0"><circle cx="24" cy="-104" r="14" fill="#F79009" stroke="#101828" stroke-width="3"/><text x="24" y="-97" text-anchor="middle" font-size="20" font-weight="900" fill="#101828">!</text></g>
+  </g></g>
+</svg>
+<div id="dialog" role="region" aria-live="polite" aria-label="Story">
+  <div id="lines"></div>
+  <div id="bar">
+    <div id="dots" aria-hidden="true"></div>
+    <div class="ctl">
+      <span class="hint" id="count"></span>
+      <button type="button" id="back" aria-label="Previous step">←</button>
+      <button type="button" id="next" class="primary">Next →</button>
+      <button type="button" id="restart">Restart</button>
+    </div>
+  </div>
+</div>
+<div id="summary" role="dialog" aria-label="Summary">
+  <div class="card">
+    <div style="font-size:13px;font-weight:800;letter-spacing:.08em;color:#475467">WHAT CHANGED · ILLUSTRATIVE</div>
+    <div style="font-size:28px;font-weight:800">Caught in the waiting room, not after a collapse</div>
+    <div class="cmp">
+      <div style="background:#F2F4F7">
+        <div style="font-weight:800">Without continuous monitoring</div>
+        <div class="tl"><b>11:51</b><span>Triaged CTAS 3, sent to wait</span></div>
+        <div class="tl"><b>14:20</b><span>HR and breathing rising, nobody knows</span></div>
+        <div class="tl"><b>14:52+</b><span>Next manual check, if staff are free (median gap between checks 1.2 h in MIMIC-IV-ED)</span></div>
+      </div>
+      <div style="background:#ECFDF3;border:2px solid #067647">
+        <div style="font-weight:800;color:#054F31">With our system</div>
+        <div class="tl"><b>11:51</b><span>Triaged CTAS 3 · registered, wearable fitted · AI flags high risk</span></div>
+        <div class="tl"><b>14:20</b><span>Urgent alert to waiting-room nurse</span></div>
+        <div class="tl"><b>14:23</b><span>Nurse at bedside, triage reassessment → CTAS 2</span></div>
+        <div class="tl"><b>14:30</b><span>Monitored stretcher, physician assessing</span></div>
+      </div>
+    </div>
+    <div style="font-size:16px;line-height:1.5;color:#344054">AI ranks risk and explains · transparent clinical rules raise the alarm · every clinical decision is made by a nurse or physician.</div>
+    <div class="ctl"><button type="button" id="restart2" class="primary">Restart</button><button type="button" id="close">Back to map</button></div>
+  </div>
+</div>
+</div>
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var C = {
+    clin: { fill: '#FFFFFF', stroke: '#101828', chip: '#EAECF0', chipText: '#344054' },
+    ai: { fill: '#F5F3FF', stroke: '#5B21B6', chip: '#DDD6FE', chipText: '#4C1D95' },
+    alert: { fill: '#FFFAEB', stroke: '#B54708', chip: '#FEDF89', chipText: '#7A2E0E' },
+    good: { fill: '#ECFDF3', stroke: '#067647', chip: '#ABEFC6', chipText: '#054F31' },
+    grey: { fill: '#F9FAFB', stroke: '#98A2B3', chip: '#EAECF0', chipText: '#475467' }
+  };
+  var SPK = {
+    Narrator: ['#101828', '#FFFFFF'], Patient: ['#D1E9FF', '#194185'], 'Triage nurse': ['#EAECF0', '#101828'],
+    Nurse: ['#EAECF0', '#101828'], System: ['#FEF0C7', '#7A2E0E'], AI: ['#EDE9FE', '#4C1D95'], Physician: ['#D1FADF', '#054F31']
+  };
+  // tiles: id, x(center), y(center), title, sub, kind, icon, step it appears
+  var TILES = [
+    ['t1', 200, 195, 'Check-in', 'Arrives · joins triage queue', 'clin', 'door', 1],
+    ['t2', 580, 195, 'Triage', 'CTAS 3 · chest tightness', 'clin', 'clip', 2],
+    ['t3', 960, 195, 'AI risk tier', 'HIGH → ECG patch, tighter limits', 'ai', 'chip', 3],
+    ['t4', 1340, 195, 'Waiting room', 'NEWS2: RR · SpO₂ · BP · pulse\nconsciousness · temp · live', 'clin', 'pulse', 4],
+    ['t5', 1340, 470, 'Urgent alert', 'HR +27% · NEWS2 6 → nurse', 'alert', 'bell', 5],
+    ['t6', 960, 470, 'Bedside check', 'Nurse: "worse" · AI re-scores', 'clin', 'steth', 6],
+    ['t7', 580, 470, 'Triage reassessment', 'CTAS 3 → 2 · monitored bed', 'alert', 'up', 7],
+    ['t8', 200, 470, 'Physician', 'ECG, troponin, treatment', 'clin', 'doc', 8],
+    ['o1', 500, 745, 'Home', 'Discharged with follow-up', 'grey', 'house', 9],
+    ['o2', 900, 745, 'Admitted', 'Cardiology', 'good', 'bed', 9],
+    ['o3', 1300, 745, 'ICU', 'Critical care', 'grey', 'icu', 9]
+  ];
+  // path segments revealed per step: [x1,y1,x2,y2,step]
+  var SEGS = [
+    [-40, 350, 200, 350, 1], [200, 350, 580, 350, 2], [580, 350, 960, 350, 3], [960, 350, 1340, 350, 4],
+    [1340, 350, 1560, 350, 5], [1560, 350, 1560, 625, 5], [1560, 625, 1340, 625, 5],
+    [1340, 625, 960, 625, 6], [960, 625, 580, 625, 7], [580, 625, 200, 625, 8],
+    [200, 625, 200, 900, 9], [200, 900, 900, 900, 9], [900, 900, 1300, 900, 9]
+  ];
+  // avatar waypoints to reach each step
+  var WAY = [
+    [[-80, 350]],
+    [[200, 350]], [[580, 350]], [[960, 350]], [[1340, 350]],
+    [[1560, 350], [1560, 625], [1340, 625]], [[960, 625]], [[580, 625]], [[200, 625]],
+    [[200, 900], [900, 900]], [[900, 900]]
+  ];
+  var STORY = [
+    [['Narrator', 'Meet Mr. Lee, 58. It is 11:51 and he walks into a busy ED with chest tightness. Click to follow his journey.']],
+    [['System', 'He arrives and joins the triage queue.']],
+    [['Patient', 'My chest has felt tight for three hours. I have diabetes.'], ['Triage nurse', 'CTAS 3, urgent. Please register at the desk next.']],
+    [['System', 'Registration: health card checked, basic wearable fitted.'], ['AI', 'Risk tier: HIGH (chest pain + diabetes + age). Rules add an ECG patch and switch him to the sensitive alarm profile.']],
+    [['System', '11:55 – 14:20 · The six NEWS2 parameters are tracked: respiration rate, SpO₂, systolic BP, pulse, level of consciousness or new confusion, and temperature. Most stream every second; BP comes from the cuff, and consciousness from nurse checks every 30 min.']],
+    [['System', '14:20 · Heart rate up 27% from his own baseline, NEWS2 = 6. URGENT alert to the waiting-room nurse. No answer in 2 min → escalates to the charge nurse.']],
+    [['Nurse', '14:23 · I\'m at the bedside. He looks pale and sweaty, worse than before.'], ['AI', 'Risk re-scored with her findings: higher. Suggest triage reassessment.']],
+    [['Nurse', 'Triage reassessment: CTAS 2. Moving him to a monitored stretcher now.'], ['System', 'Queue updated · charge nurse and physician notified · logged for audit.']],
+    [['Physician', '14:30 · 12-lead ECG and troponin now. Starting treatment.']],
+    [['Narrator', 'Outcome: admitted under cardiology service. His deterioration was caught in the waiting room, not after a collapse.']],
+    [['Narrator', 'Summary: what changed for Mr. Lee.']]
+  ];
+  var LAST = STORY.length - 1;
+
+  function el(tag, attrs, parent) { var e = document.createElementNS(NS, tag); for (var k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function icon(g, kind, x, y, col) {
+    var s = { fill: 'none', stroke: col, 'stroke-width': 4, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+    var P = {
+      door: 'M-14 22V-22H14V22M-22 22H22M6 2h0.1', clip: 'M-14 -18H14V22H-14ZM-6 -24H6V-14H-6ZM-8 -2H8M-8 8H4',
+      chip: 'M-14 -14H14V14H-14ZM-6 -22V-14M6 -22V-14M-6 14V22M6 14V22M-22 -6H-14M-22 6H-14M14 -6H22M14 6H22M-5 -5H5V5H-5Z',
+      pulse: 'M-24 2H-12L-6 -14L2 18L8 -4L12 2H24', bell: 'M-14 10V-4A14 14 0 0 1 14 -4V10L18 16H-18ZM-5 20A5 5 0 0 0 5 20',
+      steth: 'M-14 -20V-4A10 10 0 0 0 6 -4V-20M-4 6V12A10 10 0 0 0 16 12V2M16 2a5 5 0 1 0 0.1 0',
+      up: 'M0 22V-20M-14 -6L0 -20L14 -6', doc: 'M0 -10a10 10 0 1 0 0.1 0M-18 24A18 14 0 0 1 18 24M-6 8L0 16L6 8',
+      house: 'M-20 0L0 -18L20 0M-14 -5V20H14V-5M-4 20V8H4V20', bed: 'M-22 18V-12M-22 6H22V18M-14 -2a5 5 0 1 0 0.1 0M-6 -6H22V6',
+      icu: 'M-18 -16H18V16H-18ZM-8 0H8M0 -8V8'
+    };
+    var p = el('path', s, g); p.setAttribute('d', P[kind]); p.setAttribute('transform', 'translate(' + x + ',' + y + ')');
+  }
+  var segG = document.getElementById('segs'), tileG = document.getElementById('tiles');
+  var segEls = SEGS.map(function (s) { return el('line', { x1: s[0], y1: s[1], x2: s[2], y2: s[3], stroke: '#98A2B3', 'stroke-width': 4, 'stroke-linecap': 'round', class: 'seg' }, segG); });
+  var tileEls = TILES.map(function (t, i) {
+    var c = C[t[5]], g = el('g', { class: 'tile' }, tileG), w = 320, h = 150, x0 = t[1] - w / 2, y0 = t[2] - h / 2;
+    el('rect', { x: x0 + 5, y: y0 + 6, width: w, height: h, rx: 16, fill: c.stroke, opacity: .9 }, g);
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 16, fill: c.fill, stroke: c.stroke, 'stroke-width': 3 }, g);
+    var num = t[0].charAt(0) === 'o' ? '★' : t[0].slice(1);
+    el('rect', { x: x0 + 14, y: y0 + 14, width: 30, height: 26, rx: 6, fill: c.chip }, g);
+    var tn = el('text', { x: x0 + 29, y: y0 + 33, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 800, fill: c.chipText }, g); tn.textContent = num;
+    icon(g, t[6], x0 + w - 52, y0 + 48, c.stroke);
+    var tt = el('text', { x: x0 + 18, y: y0 + 84, 'font-size': t[3].length > 14 ? 23 : 26, 'font-weight': 800, fill: '#101828' }, g); tt.textContent = t[3];
+    var sl = t[4].split('\n');
+    sl.forEach(function (line, k) { var ts = el('text', { x: x0 + 18, y: y0 + (sl.length > 1 ? 110 : 116) + k * 22, 'font-size': sl.length > 1 ? 16 : 17, fill: '#344054' }, g); ts.textContent = line; });
+    return g;
+  });
+  // registration checkpoint on the triage → AI path
+  var regEl = el('g', { class: 'tile' }, tileG);
+  el('rect', { x: 655, y: 331, width: 230, height: 38, rx: 19, fill: '#FFFFFF', stroke: '#101828', 'stroke-width': 2.5 }, regEl);
+  var rt = el('text', { x: 770, y: 356, 'text-anchor': 'middle', 'font-size': 16, 'font-weight': 700, fill: '#101828' }, regEl); rt.textContent = 'Registration · wearable on';
+
+  var avatar = document.getElementById('avatar'), patch = document.getElementById('patch'), bang = document.getElementById('bang');
+  var linesEl = document.getElementById('lines'), dots = document.getElementById('dots'), count = document.getElementById('count');
+  var summary = document.getElementById('summary');
+  for (var i = 0; i <= LAST; i++) dots.appendChild(document.createElement('span'));
+  var step = 0, pos = [-80, 350], timers = [], typing = null, reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+  function place(p) { pos = p; avatar.style.transform = 'translate(' + p[0] + 'px,' + p[1] + 'px)'; }
+  function walk(points) {
+    var t = 0; avatar.classList.add('walking');
+    points.forEach(function (p) {
+      timers.push(setTimeout(function () { place(p); }, t));
+      t += reduce ? 0 : 900;
+    });
+    timers.push(setTimeout(function () { avatar.classList.remove('walking'); }, t));
+  }
+  function typeLines(lines) {
+    if (typing) { clearInterval(typing); typing = null; }
+    linesEl.innerHTML = '';
+    var targets = lines.map(function (l) {
+      var row = document.createElement('div'); row.className = 'line';
+      var who = document.createElement('span'); who.className = 'who'; who.textContent = l[0];
+      var s = SPK[l[0]]; who.style.background = s[0]; who.style.color = s[1];
+      var tx = document.createElement('span'); row.appendChild(who); row.appendChild(tx); linesEl.appendChild(row);
+      return { node: tx, text: l[1] };
+    });
+    if (reduce) { targets.forEach(function (t) { t.node.textContent = t.text; }); return; }
+    var li = 0, ci = 0;
+    typing = setInterval(function () {
+      var t = targets[li]; ci++; t.node.textContent = t.text.slice(0, ci);
+      if (ci >= t.text.length) { li++; ci = 0; if (li >= targets.length) { clearInterval(typing); typing = null; } }
+    }, 16);
+    typeLines.targets = targets;
+  }
+  function finishTyping() { if (!typing) return false; clearInterval(typing); typing = null; (typeLines.targets || []).forEach(function (t) { t.node.textContent = t.text; }); return true; }
+
+  function show(n, animate) {
+    clearTimers();
+    step = n;
+    segEls.forEach(function (s, i) { s.classList.toggle('on', SEGS[i][4] <= n && n > 0); });
+    tileEls.forEach(function (g, i) {
+      var t = TILES[i];
+      g.classList.toggle('on', t[7] <= n);
+      g.classList.toggle('dim', n >= 9 && (t[0] === 'o1' || t[0] === 'o3'));
+    });
+    patch.setAttribute('opacity', n >= 3 ? 1 : 0);
+    document.getElementById('band').setAttribute('opacity', n >= 3 ? 1 : 0);
+    regEl.classList.toggle('on', n >= 3);
+    bang.setAttribute('opacity', n >= 5 && n <= 6 ? 1 : 0);
+    var target = WAY[n];
+    if (animate) walk(target); else place(target[target.length - 1]);
+    typeLines(STORY[n]);
+    Array.prototype.forEach.call(dots.children, function (d, i) { d.classList.toggle('on', i <= n); });
+    count.textContent = 'Step ' + n + ' of ' + LAST;
+    document.getElementById('back').disabled = n === 0;
+    summary.classList.toggle('on', n === LAST);
+    document.getElementById('next').textContent = n === LAST ? 'Done' : 'Next →';
+  }
+  function next() {
+    if (finishTyping()) return;
+    if (step < LAST) show(step + 1, true);
+  }
+  function back() { if (step > 0) show(step - 1, false); }
+  function restart() { show(0, false); }
+
+  document.getElementById('map').addEventListener('click', next);
+  document.getElementById('dialog').addEventListener('click', function (e) { if (!e.target.closest('button')) next(); });
+  document.getElementById('next').addEventListener('click', next);
+  document.getElementById('back').addEventListener('click', back);
+  document.getElementById('restart').addEventListener('click', restart);
+  document.getElementById('restart2').addEventListener('click', restart);
+  document.getElementById('close').addEventListener('click', function () { summary.classList.remove('on'); });
+  document.addEventListener('keydown', function (e) {
+    if ((e.key === ' ' || e.key === 'Enter') && e.target.closest && e.target.closest('button')) return;
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); back(); }
+    else if (e.key === 'r' || e.key === 'R') restart();
+  });
+  show(0, false);
+})();
+</script>
+</body>
+</html>

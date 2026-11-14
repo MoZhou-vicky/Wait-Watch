@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hook — Mr. Lee, without continuous monitoring</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#F4F5F7;font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:#101828;overflow:hidden}
+#stage{position:relative;height:100%;display:flex;flex-direction:column}
+#scene{flex:1;min-height:0;width:100%;display:block;cursor:pointer}
+#lee{transition:transform 1.4s cubic-bezier(.45,.05,.4,1)}
+#lee.walking .legs .lg1{animation:legs .32s ease-in-out infinite alternate}
+#lee.walking .legs .lg2{animation:legs .32s ease-in-out infinite alternate-reverse}
+#lee.walking .bob{animation:bob .32s ease-in-out infinite alternate}
+@keyframes legs{from{transform:rotate(-14deg)}to{transform:rotate(14deg)}}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+.lg1,.lg2{transform-box:fill-box;transform-origin:top center}
+#pose{transition:transform 1.2s cubic-bezier(.5,0,.6,1);transform-box:view-box}
+.fade{transition:opacity .6s ease}
+#tint{transition:opacity .6s ease}
+#overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(16,24,40,.78);color:#fff;opacity:0;pointer-events:none;transition:opacity 1.2s ease;text-align:center;padding:24px}
+#overlay.on{opacity:1}
+#overlay .t1{font-size:56px;font-weight:800;letter-spacing:-.01em}
+#overlay .t2{font-size:26px;color:#D0D5DD}
+#overlay svg{width:min(720px,80vw);height:90px}
+#flat{stroke-dasharray:1400;stroke-dashoffset:1400}
+#overlay.on #flat{animation:draw 2.6s ease-out .3s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+#dialog{flex:0 0 auto;margin:0 24px 18px;background:#fff;border:3px solid #101828;border-radius:14px;box-shadow:0 6px 0 #101828;padding:14px 18px 12px;min-height:118px;display:flex;flex-direction:column;gap:6px;cursor:pointer;position:relative;z-index:2}
+#cap{font-size:22px;line-height:1.45;min-height:64px}
+#bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto}
+#dots{display:flex;gap:6px}#dots span{width:10px;height:10px;border-radius:50%;background:#D0D5DD}#dots span.on{background:#101828}
+.ctl{display:flex;gap:8px;align-items:center}
+.ctl button{min-height:40px;min-width:44px;padding:0 14px;border-radius:8px;border:2px solid #101828;background:#fff;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.ctl button.primary{background:#101828;color:#fff}
+.hint{font-size:12px;color:#475467}
+@media (prefers-reduced-motion: reduce){#lee,#pose,.fade,#tint,#overlay{transition:none}#lee.walking .legs .lg1,#lee.walking .legs .lg2,#lee.walking .bob{animation:none}#overlay.on #flat{animation:none;stroke-dashoffset:0}}
+</style>
+</head>
+<body>
+<div id="stage">
+<svg id="scene" viewBox="0 0 1600 820" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Animated scene: a patient enters the emergency department, is triaged, waits, deteriorates and collapses">
+  <defs><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#E4E7EC"/></pattern></defs>
+  <rect width="1600" height="820" fill="url(#grid)"/>
+  <rect id="tint" width="1600" height="820" fill="#D92D20" opacity="0"/>
+  <text x="40" y="58" font-size="30" font-weight="800" fill="#101828">Without continuous monitoring</text>
+  <text x="40" y="90" font-size="17" fill="#475467">Illustrative scenario · click, Space or → to advance</text>
+  <!-- clock -->
+  <g transform="translate(1340,30)">
+    <rect width="220" height="76" rx="14" fill="#101828"/>
+    <text id="clock" x="110" y="52" text-anchor="middle" font-size="40" font-weight="800" fill="#fff" font-variant-numeric="tabular-nums">11:51</text>
+  </g>
+  <g id="world" transform="translate(0,-200) scale(1.3)">
+  <!-- floor -->
+  <line x1="-100" y1="700" x2="1400" y2="700" stroke="#98A2B3" stroke-width="3"/>
+  <!-- entrance -->
+  <g>
+    <rect x="70" y="420" width="130" height="280" rx="6" fill="#FFFFFF" stroke="#101828" stroke-width="4"/>
+    <rect x="70" y="380" width="130" height="34" rx="6" fill="#B42318"/>
+    <text x="135" y="404" text-anchor="middle" font-size="18" font-weight="800" fill="#fff">EMERGENCY</text>
+    <circle cx="180" cy="560" r="5" fill="#101828"/>
+  </g>
+  <!-- triage desk + nurse -->
+  <g>
+    <text x="560" y="372" text-anchor="middle" font-size="18" font-weight="700" fill="#475467">TRIAGE</text>
+    <g transform="translate(560,600)">
+      <circle cx="0" cy="-118" r="18" fill="#FDDCAB" stroke="#101828" stroke-width="3"/>
+      <rect x="-20" y="-98" width="40" height="44" rx="10" fill="#12B76A" stroke="#101828" stroke-width="3"/>
+    </g>
+    <rect x="470" y="540" width="180" height="160" rx="8" fill="#FFFFFF" stroke="#101828" stroke-width="4"/>
+    <rect id="queue" x="478" y="392" width="164" height="34" rx="17" fill="#FEF0C7" stroke="#B54708" stroke-width="2"/>
+    <text x="560" y="415" text-anchor="middle" font-size="16" font-weight="700" fill="#7A2E0E">Triage queue: 11</text>
+  </g>
+  <!-- waiting area -->
+  <text x="960" y="400" text-anchor="middle" font-size="18" font-weight="700" fill="#475467">WAITING ROOM</text>
+  <g id="chairs"></g>
+  <g id="others"></g>
+  <!-- Mr. Lee -->
+  <g id="lee" style="transform:translate(-90px,700px)">
+    <g id="pose">
+      <g transform="scale(1.15)">
+        <ellipse cx="0" cy="2" rx="22" ry="6" fill="#101828" opacity=".18"/>
+        <g class="bob">
+          <g class="legs" id="legsStand">
+            <rect class="lg1" x="-11" y="-26" width="9" height="24" rx="3" fill="#344054"/>
+            <rect class="lg2" x="2" y="-26" width="9" height="24" rx="3" fill="#344054"/>
+          </g>
+          <g id="legsSit" opacity="0">
+            <rect x="-8" y="-30" width="26" height="9" rx="3" fill="#344054"/>
+            <rect x="12" y="-26" width="8" height="24" rx="3" fill="#344054"/>
+          </g>
+          <rect id="torso" x="-16" y="-62" width="32" height="40" rx="9" fill="#2E90FA" stroke="#101828" stroke-width="3"/>
+          <circle id="head" cx="0" cy="-78" r="16" fill="#FDDCAB" stroke="#101828" stroke-width="3"/>
+          <g id="eyesOpen"><circle cx="-5" cy="-80" r="2.4" fill="#101828"/><circle cx="6" cy="-80" r="2.4" fill="#101828"/></g>
+          <g id="eyesShut" opacity="0" stroke="#101828" stroke-width="2.4" stroke-linecap="round"><path d="M-8 -80 l6 0"/><path d="M3 -80 l6 0"/></g>
+          <path id="mouth" d="M-5 -71 q5 4 10 0" fill="none" stroke="#101828" stroke-width="2" stroke-linecap="round"/>
+          <path id="hand" d="M-12 -52 l14 4" stroke="#FDDCAB" stroke-width="6" stroke-linecap="round" opacity="0"/>
+          <g id="sweat" opacity="0" fill="#53B1FD" stroke="#175CD3" stroke-width="1"><path d="M17 -88 q3 6 0 9 q-3 -3 0 -9z"/><path d="M-19 -82 q3 6 0 9 q-3 -3 0 -9z"/></g>
+        </g>
+      </g>
+    </g>
+    <!-- risk badge (not rotated) -->
+    <g id="badge" class="fade" opacity="0" transform="translate(0,-175)">
+      <rect id="badgeBox" x="-92" y="-26" width="184" height="46" rx="23" fill="#ECFDF3" stroke="#067647" stroke-width="3"/>
+      <text id="badgeText" x="0" y="5" text-anchor="middle" font-size="20" font-weight="800" fill="#054F31">RISK · LOW</text>
+      <text id="hr" x="0" y="44" text-anchor="middle" font-size="17" font-weight="700" fill="#344054"></text>
+    </g>
+  </g>
+  </g>
+  <!-- note about next check -->
+  <g id="note" class="fade" opacity="0">
+    <rect x="1220" y="140" width="340" height="64" rx="12" fill="#FFFFFF" stroke="#98A2B3" stroke-width="2"/>
+    <text x="1390" y="168" text-anchor="middle" font-size="16" fill="#475467">Next scheduled vitals check</text>
+    <text x="1390" y="194" text-anchor="middle" font-size="20" font-weight="800" fill="#101828">14:52</text>
+  </g>
+</svg>
+<div id="overlay" aria-live="polite">
+  <svg viewBox="0 0 720 90" aria-hidden="true"><path id="flat" d="M0 45 H120 l14 -30 l14 60 l14 -40 l10 10 H300 l12 -22 l12 40 l10 -18 H720" fill="none" stroke="#F04438" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  <div class="t1">14:47 · Cardiac arrest in the waiting room</div>
+  <div class="t2">He was triaged correctly. His next check was due at 14:52.</div>
+</div>
+<div id="dialog" role="region" aria-label="Caption">
+  <div id="cap"></div>
+  <div id="bar"><div id="dots" aria-hidden="true"></div>
+    <div class="ctl"><span class="hint" id="count"></span>
+      <button type="button" id="back" aria-label="Previous step">←</button>
+      <button type="button" id="next" class="primary">Next →</button>
+      <button type="button" id="restart">Restart</button></div></div>
+</div>
+</div>
+<script>
+(function(){
+  var NS='http://www.w3.org/2000/svg';
+  function el(t,a,p){var e=document.createElementNS(NS,t);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;}
+  var CH=[760,860,960,1060,1160], LEE_CHAIR=960;
+  var chairs=document.getElementById('chairs'), others=document.getElementById('others');
+  CH.forEach(function(x){
+    el('rect',{x:x-34,y:612,width:68,height:14,rx:4,fill:'#98A2B3'},chairs);
+    el('rect',{x:x+24,y:560,width:10,height:66,rx:4,fill:'#98A2B3'},chairs);
+    el('rect',{x:x-30,y:626,width:6,height:74,fill:'#98A2B3'},chairs);
+    el('rect',{x:x+22,y:626,width:6,height:74,fill:'#98A2B3'},chairs);
+    if(x!==LEE_CHAIR){var g=el('g',{transform:'translate('+x+',612)'},others);
+      el('rect',{x:-14,y:-48,width:28,height:40,rx:8,fill:'#D0D5DD',stroke:'#98A2B3','stroke-width':2},g);
+      el('circle',{cx:0,cy:-62,r:13,fill:'#EAECF0',stroke:'#98A2B3','stroke-width':2},g);
+      el('rect',{x:-8,y:-10,width:24,height:8,rx:3,fill:'#98A2B3'},g);}
+  });
+  var $=function(id){return document.getElementById(id)};
+  var lee=$('lee'),pose=$('pose'),badge=$('badge'),box=$('badgeBox'),btxt=$('badgeText'),hr=$('hr'),clock=$('clock'),tint=$('tint'),note=$('note'),overlay=$('overlay'),cap=$('cap'),dots=$('dots'),count=$('count');
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var CAP=[
+    '11:51 · Mr. Lee, 58, walks into a busy emergency department with chest tightness.',
+    'Triage: CTAS 3, urgent. The right call. He is sent to the waiting room.',
+    'He waits. His heart rate and breathing keep climbing between checks, and nobody sees it.',
+    '14:47 · He collapses. His next scheduled check was 5 minutes away.'
+  ];
+  var LAST=CAP.length-1, step=0, timers=[], raf=null;
+  for(var i=0;i<=LAST;i++)dots.appendChild(document.createElement('span'));
+  var STAGES=[
+    {t:0,label:'RISK · LOW',fill:'#ECFDF3',stroke:'#067647',text:'#054F31'},
+    {t:.3,label:'RISK · RISING',fill:'#FEF0C7',stroke:'#B54708',text:'#7A2E0E'},
+    {t:.6,label:'RISK · HIGH',fill:'#FEE4E2',stroke:'#D92D20',text:'#912018'},
+    {t:.85,label:'RISK · CRITICAL',fill:'#D92D20',stroke:'#7A271A',text:'#FFFFFF'}
+  ];
+  function mix(a,b,t){var pa=[1,3,5].map(function(i){return parseInt(a.substr(i,2),16)}),pb=[1,3,5].map(function(i){return parseInt(b.substr(i,2),16)});return '#'+pa.map(function(v,i){var c=Math.round(v+(pb[i]-v)*t).toString(16);return c.length<2?'0'+c:c}).join('');}
+  function hm(m){var h=Math.floor(m/60),mm=Math.round(m%60);return h+':'+(mm<10?'0':'')+mm;}
+  function setLee(x,y){lee.style.transform='translate('+x+'px,'+y+'px)';}
+  function sit(on){$('legsStand').setAttribute('opacity',on?0:1);$('legsSit').setAttribute('opacity',on?1:0);}
+  function decline(t){ // t: 0..1
+    var s=STAGES[0];STAGES.forEach(function(x){if(t>=x.t)s=x;});
+    box.setAttribute('fill',s.fill);box.setAttribute('stroke',s.stroke);btxt.setAttribute('fill',s.text);btxt.textContent=s.label;
+    hr.textContent='HR '+Math.round(93+41*t)+' · RR '+Math.round(16+12*t);
+    hr.setAttribute('fill',t>.6?'#B42318':'#344054');
+    $('head').setAttribute('fill',mix('#FDDCAB','#E9E4DA',Math.min(1,t*1.2)));
+    $('torso').setAttribute('fill',mix('#2E90FA','#7FA7CF',t));
+    $('mouth').setAttribute('d',t<.3?'M-5 -71 q5 4 10 0':t<.6?'M-5 -70 l10 0':'M-5 -68 q5 -4 10 0');
+    $('sweat').setAttribute('opacity',t>.5?1:0);
+    $('hand').setAttribute('opacity',t>.6?1:0);
+    tint.setAttribute('opacity',(0.09*t).toFixed(3));
+    clock.textContent=hm(11*60+55+(14*60+40-(11*60+55))*t);
+    clock.setAttribute('fill',t>.85?'#FDA29B':'#FFFFFF');
+  }
+  function collapsed(on){
+    pose.style.transform=on?'translate(46px,0) rotate(-88deg)':'none';
+    $('eyesOpen').setAttribute('opacity',on?0:1);$('eyesShut').setAttribute('opacity',on?1:0);
+    if(on){$('head').setAttribute('fill','#D0D5DD');$('torso').setAttribute('fill','#98A2B3');$('sweat').setAttribute('opacity',0);$('hand').setAttribute('opacity',0);
+      box.setAttribute('fill','#101828');box.setAttribute('stroke','#101828');btxt.setAttribute('fill','#FDA29B');btxt.textContent='NO PULSE';hr.textContent='';clock.textContent='14:47';badge.setAttribute('transform','translate(20,-70)');}
+    else badge.setAttribute('transform','translate(0,-175)');
+  }
+  function clear(){timers.forEach(clearTimeout);timers=[];if(raf){cancelAnimationFrame(raf);raf=null;}lee.classList.remove('walking');}
+  function later(fn,ms){timers.push(setTimeout(fn,reduce?0:ms));}
+  function show(n,anim){
+    clear();step=n;
+    cap.textContent=CAP[n];
+    Array.prototype.forEach.call(dots.children,function(d,i){d.classList.toggle('on',i<=n)});
+    count.textContent='Step '+n+' of '+LAST;$('back').disabled=n===0;$('next').textContent=n===LAST?'Done':'Next →';
+    overlay.classList.remove('on');collapsed(false);
+    if(n===0){setLee(-90,700);sit(false);badge.setAttribute('opacity',0);note.setAttribute('opacity',0);decline(0);clock.textContent='11:51';tint.setAttribute('opacity',0);}
+    if(n===1){sit(false);note.setAttribute('opacity',0);decline(0);clock.textContent='11:51';tint.setAttribute('opacity',0);
+      badge.setAttribute('opacity',0);
+      if(anim){lee.classList.add('walking');setLee(-90,700);later(function(){setLee(380,700);},30);later(function(){lee.classList.remove('walking');badge.setAttribute('opacity',1);triageBadge();},1450);}
+      else{setLee(380,700);badge.setAttribute('opacity',1);triageBadge();}
+    }
+    if(n===2){
+      if(anim){badge.setAttribute('opacity',1);triageBadge();sit(false);lee.classList.add('walking');setLee(380,700);
+        later(function(){setLee(LEE_CHAIR-12,700);},30);
+        later(function(){lee.classList.remove('walking');sit(true);setLee(LEE_CHAIR-12,640);note.setAttribute('opacity',1);decline(0);run(8000);},1500);}
+      else{sit(true);setLee(LEE_CHAIR-12,640);badge.setAttribute('opacity',1);note.setAttribute('opacity',1);decline(1);}
+    }
+    if(n===3){sit(true);setLee(LEE_CHAIR-12,640);badge.setAttribute('opacity',1);note.setAttribute('opacity',1);decline(1);
+      later(function(){sit(false);setLee(LEE_CHAIR+40,700);collapsed(true);},anim?300:0);
+      later(function(){overlay.classList.add('on');},anim?2300:0);
+    }
+  }
+  function triageBadge(){box.setAttribute('fill','#D1E9FF');box.setAttribute('stroke','#1849A9');btxt.setAttribute('fill','#194185');btxt.textContent='CTAS 3 · URGENT';hr.textContent='HR 93 · RR 16';hr.setAttribute('fill','#344054');}
+  function run(ms){
+    if(reduce){decline(1);return;}
+    var t0=null;function f(ts){if(!t0)t0=ts;var t=Math.min(1,(ts-t0)/ms);decline(t);if(t<1)raf=requestAnimationFrame(f);else raf=null;}
+    raf=requestAnimationFrame(f);
+  }
+  function next(){if(step<LAST)show(step+1,true);}
+  function back(){if(step>0)show(step-1,false);}
+  $('scene').addEventListener('click',next);
+  $('dialog').addEventListener('click',function(e){if(!e.target.closest('button'))next();});
+  overlay.addEventListener('click',next);
+  $('next').addEventListener('click',next);$('back').addEventListener('click',back);$('restart').addEventListener('click',function(){show(0,false);});
+  document.addEventListener('keydown',function(e){
+    if((e.key===' '||e.key==='Enter')&&e.target.closest&&e.target.closest('button'))return;
+    if(e.key==='ArrowRight'||e.key===' '||e.key==='Enter'){e.preventDefault();next();}
+    else if(e.key==='ArrowLeft'){e.preventDefault();back();}
+    else if(e.key==='r'||e.key==='R')show(0,false);
+  });
+  show(0,false);
+})();
+</script>
+</body>
+</html>
