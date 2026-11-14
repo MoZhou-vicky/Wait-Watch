@@ -19,6 +19,14 @@ Open in any browser, no install needed.
 
 Controls: click, Space or → to advance, ← to go back, R to restart. On the dashboard, press **Reset demo** first.
 
+## Demo videos
+
+Screen recordings of the demos as presented (download to watch).
+
+- [Hook: without monitoring](https://github.com/MoZhou-vicky/Wait-Watch/releases/download/v1.0/hook.MP4)
+- [End-to-end demo](https://github.com/MoZhou-vicky/Wait-Watch/releases/download/v1.0/end-to-end.demo.mov)
+- [Nurse dashboard](https://github.com/MoZhou-vicky/Wait-Watch/releases/download/v1.0/dashboard.mov)
+
 ## Files
 
 | Folder | What's inside |
